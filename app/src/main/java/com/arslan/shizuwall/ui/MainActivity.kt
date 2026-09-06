@@ -1886,15 +1886,6 @@ class MainActivity : BaseActivity() {
                         (AppKey.isSecondary(key) && !secondaryScanUsable)
                 }
 
-                val savedActive = loadActivePackages().toMutableSet()
-                val activeToRemove = savedActive.filterNot(isKnown)
-                val appsWereRemoved = activeToRemove.isNotEmpty()
-
-                if (appsWereRemoved) {
-                    savedActive.removeAll(activeToRemove.toSet())
-                    saveActivePackages(savedActive)
-                }
-
                 val savedSelected = loadSelectedApps().toMutableSet()
                 val selectedToRemove = if (rememberDisabled) emptyList() else savedSelected.filterNot(isKnown)
                 // Remove this app itself from saved selected apps if present
@@ -1966,19 +1957,28 @@ class MainActivity : BaseActivity() {
                     modesJson = modesJson
                 )
 
-                Triple(results + secondaryApps, savedActive, appsWereRemoved)
+                Pair(results + secondaryApps, isKnown)
             }
 
             val builtList = result.first
-            val cleanedActivePackages = result.second
-            val appsWereRemoved = result.third
+            val isKnownKey = result.second
 
-            activeFirewallPackages.clear()
-            activeFirewallPackages.addAll(cleanedActivePackages)
+            var appsWereRemoved = false
+            if (!isFirewallProcessRunning) {
+                val currentActive = loadActivePackages().toMutableSet()
+                val activeToRemove = currentActive.filterNot(isKnownKey)
+                appsWereRemoved = activeToRemove.isNotEmpty()
+                if (appsWereRemoved) {
+                    currentActive.removeAll(activeToRemove.toSet())
+                    saveActivePackages(currentActive)
+                }
+                activeFirewallPackages.clear()
+                activeFirewallPackages.addAll(currentActive)
+            }
 
             // If firewall is enabled but no packages are active (e.g. all uninstalled), disable it
             // In Adaptive Mode, we allow firewall to stay ON even with 0 active packages
-            if (isFirewallEnabled && activeFirewallPackages.isEmpty() && !firewallMode.allowsDynamicSelection()) {
+            if (isFirewallEnabled && !isFirewallProcessRunning && activeFirewallPackages.isEmpty() && !firewallMode.allowsDynamicSelection()) {
                 isFirewallEnabled = false
                 saveFirewallEnabled(false)
                 // Update UI to reflect disabled state
