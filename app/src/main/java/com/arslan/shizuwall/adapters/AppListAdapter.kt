@@ -1,9 +1,6 @@
 package com.arslan.shizuwall.adapters
 
 import android.graphics.Bitmap
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ImageSpan
 import android.util.LruCache
 import android.view.LayoutInflater
 import android.view.View
@@ -29,6 +26,7 @@ import androidx.core.graphics.ColorUtils
 import com.arslan.shizuwall.utils.CrossUserAppInfo
 import com.arslan.shizuwall.utils.AppIds
 import com.arslan.shizuwall.utils.MultiUserApps
+import com.arslan.shizuwall.ui.StarFieldView
 import com.arslan.shizuwall.utils.UiUtils
 
 class AppInfoDiffCallback : DiffUtil.ItemCallback<AppInfo>() {
@@ -102,26 +100,8 @@ class AppListAdapter(
         val profileBadge: TextView = itemView.findViewById(R.id.profileBadge)
         val modeDropdownText: MaterialButton = itemView.findViewById(R.id.modeDropdownText)
         val appInfoButton: ImageView = itemView.findViewById(R.id.appInfoButton)
+        val favoriteWatermark: StarFieldView = itemView.findViewById(R.id.favoriteWatermark)
 
-
-        private fun buildFavoriteName(name: String): CharSequence {
-            val context = itemView.context
-            val starSize = (appName.textSize * 0.9f).toInt()
-            val drawable = ContextCompat.getDrawable(
-                context, android.R.drawable.btn_star_big_on
-            )?.mutate() ?: return name
-            drawable.setBounds(0, 0, starSize, starSize)
-            drawable.setTint(MaterialColors.getColor(itemView, android.R.attr.colorPrimary))
-
-            val builder = SpannableStringBuilder(name).append(" ★")
-            val start = builder.length - 1
-            builder.setSpan(
-                ImageSpan(drawable, ImageSpan.ALIGN_BASELINE),
-                start, builder.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            return builder
-        }
 
         fun bind(appInfo: AppInfo) {
             val pkg = appInfo.packageName
@@ -152,11 +132,7 @@ class AppListAdapter(
                 }
             }
 
-            appName.text = if (appInfo.isFavorite) {
-                buildFavoriteName(appInfo.appName)
-            } else {
-                appInfo.appName
-            }
+            appName.text = appInfo.appName
             packageName.text = appInfo.packageName
 
             if (appInfo.userId != 0) {
@@ -212,6 +188,18 @@ class AppListAdapter(
                 ColorUtils.blendARGB(surfaceColor, surfaceVariantColor, 0.25f)
             }
             card.setCardBackgroundColor(cardBgColor)
+
+            if (appInfo.isFavorite) {
+                favoriteWatermark.visibility = View.VISIBLE
+                val accent = if (appInfo.isSelected) {
+                    MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorOnPrimaryContainer)
+                } else {
+                    MaterialColors.getColor(itemView, android.R.attr.colorPrimary)
+                }
+                favoriteWatermark.starColor = accent
+            } else {
+                favoriteWatermark.visibility = View.GONE
+            }
 
             if (favoriteEnabled) {
                 itemView.setOnLongClickListener {
