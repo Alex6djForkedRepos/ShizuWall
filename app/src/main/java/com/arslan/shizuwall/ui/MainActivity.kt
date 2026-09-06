@@ -14,12 +14,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.os.SystemClock
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.RadioGroup
@@ -80,6 +82,10 @@ import org.json.JSONObject
 
 class MainActivity : BaseActivity() {
     companion object {
+        private const val FADE_IN_DURATION_MS = 300L
+        private const val FADE_OUT_DURATION_MS = 220L
+        private const val PROGRESS_SHOW_DELAY_MS = 250L
+        private const val PROGRESS_MIN_VISIBLE_MS = 550L
         const val PREF_NAME = "ShizuWallPrefs"
         const val KEY_SELECTED_APPS = "selected_apps"
         const val KEY_SELECTED_COUNT = "selected_count"
@@ -207,7 +213,7 @@ class MainActivity : BaseActivity() {
         }
 
         // If already enabled, nothing to do
-        if (isFirewallEnabled) return@OnBinderReceivedListener
+        if (loadFirewallEnabled()) return@OnBinderReceivedListener
 
         // Use coroutine to handle auto-enable with proper timing
         lifecycleScope.launch(Dispatchers.IO) {
@@ -233,6 +239,7 @@ class MainActivity : BaseActivity() {
                 // Nothing to enable (and adaptive/smart mode does not allow empty set)
                 return@launch
             }
+            if (loadFirewallEnabled()) return@launch
 
             val hasPermission = try {
                 Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
@@ -349,7 +356,8 @@ class MainActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         
         sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        
+        isFirewallEnabled = loadFirewallEnabled()
+
         enableEdgeToEdge()
 
         // Check if onboarding is complete
@@ -529,7 +537,7 @@ class MainActivity : BaseActivity() {
         // If user enabled auto-enable and Shizuku is already present, attempt to auto-enable.
         try {
             val autoPref = sharedPreferences.getBoolean(KEY_AUTO_ENABLE_ON_SHIZUKU_START, false)
-            if (autoPref && !isFirewallEnabled) {
+            if (autoPref && !loadFirewallEnabled()) {
                 if (Shizuku.pingBinder()) {
                     // If permission granted, proceed or request permission
                     if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
@@ -2103,12 +2111,83 @@ class MainActivity : BaseActivity() {
         sharedPreferences.edit().putString(KEY_APPS_CACHE_JSON, arr.toString()).apply()
     }
 
+    private inner class DelayedFader(private val view: View) {
+        private var shownAt = 0L
+
+        private val showRunnable = Runnable {
+            shownAt = SystemClock.uptimeMillis()
+            fadeVisibility(view, true)
+        }
+
+        private val hideRunnable = Runnable { fadeVisibility(view, false) }
+
+        fun set(visible: Boolean) {
+            view.removeCallbacks(showRunnable)
+            view.removeCallbacks(hideRunnable)
+            if (visible) {
+                if (view.visibility == View.VISIBLE) return
+                view.postDelayed(showRunnable, PROGRESS_SHOW_DELAY_MS)
+                return
+            }
+            if (view.visibility != View.VISIBLE) return
+            val remaining = PROGRESS_MIN_VISIBLE_MS - (SystemClock.uptimeMillis() - shownAt)
+            if (remaining <= 0L) {
+                fadeVisibility(view, false)
+            } else {
+                view.postDelayed(hideRunnable, remaining)
+            }
+        }
+    }
+
+    private val firewallProgressFader by lazy { DelayedFader(firewallProgress) }
+
+    private val appListLoadingFader by lazy { DelayedFader(appListLoadingContainer) }
+
+    private fun fadeVisibility(view: View, visible: Boolean) {
+        view.animate().cancel()
+        if (visible) {
+            if (view.visibility != View.VISIBLE) {
+                view.alpha = 0f
+                view.scaleX = 0.7f
+                view.scaleY = 0.7f
+                view.visibility = View.VISIBLE
+            }
+            view.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(FADE_IN_DURATION_MS)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+            return
+        }
+        if (view.visibility != View.VISIBLE) {
+            view.alpha = 1f
+            view.scaleX = 1f
+            view.scaleY = 1f
+            return
+        }
+        view.animate()
+            .alpha(0f)
+            .scaleX(0.7f)
+            .scaleY(0.7f)
+            .setDuration(FADE_OUT_DURATION_MS)
+            .setInterpolator(AccelerateInterpolator())
+            .withEndAction {
+                view.visibility = View.GONE
+                view.alpha = 1f
+                view.scaleX = 1f
+                view.scaleY = 1f
+            }
+            .start()
+    }
+
     private fun setAppListLoadingVisible(visible: Boolean) {
         if (!::appListLoadingContainer.isInitialized) return
         if (visible == isAppListLoadingVisible) return
 
         isAppListLoadingVisible = visible
-        appListLoadingContainer.visibility = if (visible) View.VISIBLE else View.GONE
+        appListLoadingFader.set(visible)
         updateEmptyState()
     }
 
@@ -2329,7 +2408,7 @@ class MainActivity : BaseActivity() {
         isFirewallProcessRunning = true
         isEnablingProcess = enable
         lifecycleScope.launch {
-            firewallProgress.visibility = android.view.View.VISIBLE
+            firewallProgressFader.set(true)
             appListAdapter.setSelectionEnabled(false)
             updateInteractiveViews()
             showDimOverlay(force = true)
@@ -2472,7 +2551,7 @@ class MainActivity : BaseActivity() {
                 }
             }
             } finally {
-                firewallProgress.visibility = android.view.View.GONE
+                firewallProgressFader.set(false)
                 firewallToggle.isEnabled = true
                 isFirewallProcessRunning = false
                 applyListInteractionState()
@@ -3123,7 +3202,7 @@ class MainActivity : BaseActivity() {
         firewallToggle.isEnabled = false
         isFirewallProcessRunning = true
         lifecycleScope.launch {
-            firewallProgress.visibility = android.view.View.VISIBLE
+            firewallProgressFader.set(true)
             appListAdapter.setSelectionEnabled(false)
             updateInteractiveViews()
             try {
@@ -3158,7 +3237,7 @@ class MainActivity : BaseActivity() {
             } catch (t: Throwable) {
 
             } finally {
-                firewallProgress.visibility = android.view.View.GONE
+                firewallProgressFader.set(false)
                 firewallToggle.isEnabled = true
                 isFirewallProcessRunning = false
                 appListAdapter.setSelectionEnabled(true)
