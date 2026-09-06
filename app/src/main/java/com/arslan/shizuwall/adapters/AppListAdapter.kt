@@ -5,6 +5,8 @@ import android.util.LruCache
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
@@ -26,7 +28,6 @@ import androidx.core.graphics.ColorUtils
 import com.arslan.shizuwall.utils.CrossUserAppInfo
 import com.arslan.shizuwall.utils.AppIds
 import com.arslan.shizuwall.utils.MultiUserApps
-import com.arslan.shizuwall.ui.StarFieldView
 import com.arslan.shizuwall.utils.UiUtils
 
 class AppInfoDiffCallback : DiffUtil.ItemCallback<AppInfo>() {
@@ -100,7 +101,9 @@ class AppListAdapter(
         val profileBadge: TextView = itemView.findViewById(R.id.profileBadge)
         val modeDropdownText: MaterialButton = itemView.findViewById(R.id.modeDropdownText)
         val appInfoButton: ImageView = itemView.findViewById(R.id.appInfoButton)
-        val favoriteWatermark: StarFieldView = itemView.findViewById(R.id.favoriteWatermark)
+        val favoriteBadge: ImageView = itemView.findViewById(R.id.favoriteBadge)
+        private var boundKey: String? = null
+        private var boundFavorite: Boolean? = null
 
 
         fun bind(appInfo: AppInfo) {
@@ -189,16 +192,21 @@ class AppListAdapter(
             }
             card.setCardBackgroundColor(cardBgColor)
 
-            if (appInfo.isFavorite) {
-                favoriteWatermark.visibility = View.VISIBLE
-                val accent = if (appInfo.isSelected) {
-                    MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorOnPrimaryContainer)
-                } else {
-                    MaterialColors.getColor(itemView, android.R.attr.colorPrimary)
-                }
-                favoriteWatermark.starColor = accent
+            val accent = if (appInfo.isSelected) {
+                MaterialColors.getColor(itemView, com.google.android.material.R.attr.colorOnPrimaryContainer)
             } else {
-                favoriteWatermark.visibility = View.GONE
+                MaterialColors.getColor(itemView, android.R.attr.colorPrimary)
+            }
+            favoriteBadge.imageTintList = android.content.res.ColorStateList.valueOf(accent)
+            favoriteBadge.backgroundTintList = android.content.res.ColorStateList.valueOf(cardBgColor)
+            val animateFavorite = boundKey == appInfo.key && boundFavorite != null &&
+                boundFavorite != appInfo.isFavorite
+            boundKey = appInfo.key
+            boundFavorite = appInfo.isFavorite
+            if (animateFavorite) {
+                animateFavoriteBadge(appInfo.isFavorite)
+            } else {
+                showFavoriteBadge(appInfo.isFavorite)
             }
 
             if (favoriteEnabled) {
@@ -211,6 +219,40 @@ class AppListAdapter(
             }
 
             bindInteractions(appInfo, selectionEnabled)
+        }
+
+        private fun showFavoriteBadge(favorite: Boolean) {
+            favoriteBadge.animate().cancel()
+            favoriteBadge.visibility = if (favorite) View.VISIBLE else View.GONE
+            favoriteBadge.alpha = if (favorite) 1f else 0f
+            favoriteBadge.scaleX = 1f
+            favoriteBadge.scaleY = 1f
+        }
+
+        private fun animateFavoriteBadge(favorite: Boolean) {
+            favoriteBadge.animate().cancel()
+            if (favorite) {
+                favoriteBadge.visibility = View.VISIBLE
+                favoriteBadge.alpha = 0f
+                favoriteBadge.scaleX = FAVORITE_SCALE_FROM
+                favoriteBadge.scaleY = FAVORITE_SCALE_FROM
+                favoriteBadge.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(FAVORITE_FADE_IN_MS)
+                    .setInterpolator(OvershootInterpolator())
+                    .start()
+            } else {
+                favoriteBadge.animate()
+                    .alpha(0f)
+                    .scaleX(FAVORITE_SCALE_FROM)
+                    .scaleY(FAVORITE_SCALE_FROM)
+                    .setDuration(FAVORITE_FADE_OUT_MS)
+                    .setInterpolator(AccelerateInterpolator())
+                    .withEndAction { favoriteBadge.visibility = View.GONE }
+                    .start()
+            }
         }
 
         private fun bindInteractions(appInfo: AppInfo, selectionEnabled: Boolean) {
@@ -282,5 +324,11 @@ class AppListAdapter(
 
     override fun onBindViewHolder(holder: AppViewHolder, position: Int) {
         holder.bind(getItem(position))
+    }
+
+    private companion object {
+        const val FAVORITE_FADE_IN_MS = 260L
+        const val FAVORITE_FADE_OUT_MS = 160L
+        const val FAVORITE_SCALE_FROM = 0.4f
     }
 }
