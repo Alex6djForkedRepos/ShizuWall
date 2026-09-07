@@ -119,6 +119,18 @@ class BootReceiver : BroadcastReceiver() {
             Log.w(TAG, "Root re-apply failed, clearing persisted firewall state")
         }
 
+        val autoEnableOnShizukuStart = readBoolean(
+            dpPrefs,
+            normalPrefs,
+            MainActivity.KEY_AUTO_ENABLE_ON_SHIZUKU_START,
+            false
+        )
+        if (workingMode == WorkingMode.SHIZUKU && autoEnableOnShizukuStart) {
+            Log.d(TAG, "Keeping firewall state; ShizuWallApp re-enables it when Shizuku starts")
+            maybeStartForegroundDetection(context, dpPrefs, normalPrefs)
+            return
+        }
+
         clearFirewallState(dpPrefs)
         clearFirewallState(normalPrefs)
 

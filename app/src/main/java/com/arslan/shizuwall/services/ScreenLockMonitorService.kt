@@ -47,10 +47,14 @@ class ScreenLockMonitorService : Service() {
             ScreenLockModeWatchdogWorker.sync(appContext, shouldRun)
 
             val serviceIntent = Intent(appContext, ScreenLockMonitorService::class.java)
-            if (shouldRun) {
-                appContext.startForegroundService(serviceIntent)
-            } else {
-                appContext.stopService(serviceIntent)
+            try {
+                if (shouldRun) {
+                    appContext.startForegroundService(serviceIntent)
+                } else {
+                    appContext.stopService(serviceIntent)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to sync screen lock monitor service", e)
             }
         }
     }
