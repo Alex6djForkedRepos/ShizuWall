@@ -529,7 +529,7 @@
     <string name="contact_developer_description">Enviar comentarios o informar de un problema</string>
     <string name="contact_developer_no_app">No se encontró ninguna aplicación de correo</string>
     <string name="changelog_title">Novedades en %1$s</string>
-    <string name="changelog_message">• Bloqueo de app: protege ShizuWall con PIN o biometría\n• Menú de ajustes: exporta, importa o restablece la configuración\n• Estado vacío y avisos del backend que explican qué hacer\n• Notificaciones del monitor de apps más claras\n• Snackbar en lugar de toasts\n• La tarjeta de recientes sigue los colores de tu tema\n• Tarjeta para contactar al desarrollador en ajustes</string>
+    <string name="changelog_message">• Bloqueo de app: protege ShizuWall con PIN o biometría\n• Menú de ajustes: exporta, importa o restablece la configuración\n• Ventana de novedades tras cada actualización, también en ajustes\n• Mostrar apps del sistema y otros perfiles se movieron a la pantalla de comportamiento del cortafuegos\n• Estado vacío y avisos del backend que explican qué hacer\n• El modo Shizuku vuelve a activar el cortafuegos solo tras reiniciar\n• Las apps desactivadas en perfiles de trabajo y Carpeta segura ya no aparecen\n• Notificaciones del monitor de apps más claras\n• Snackbar en lugar de toasts y tarjeta para contactar al desarrollador en ajustes</string>
     <string name="whats_new">Novedades</string>
     <string name="whats_new_description">Ver los cambios de esta versión</string>
 </resources>

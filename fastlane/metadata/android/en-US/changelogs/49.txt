@@ -1,0 +1,8 @@
+App lock: protect ShizuWall with a PIN or biometrics #141
+New "What's new" dialog after an update, also available in settings #143
+Show system apps and Show other profiles moved to the Firewall behaviour screen #145
+Empty app list state and backend banners that explain what to do next
+Shizuku mode re-enables the firewall by itself after a reboot #148
+Disabled apps in work profiles and Secure Folder are no longer listed #147
+Clearer app monitor notifications #142
+Snackbar feedback instead of toasts, and a contact developer card in settings
