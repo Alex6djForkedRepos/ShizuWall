@@ -13,6 +13,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.viewpager2.widget.ViewPager2
 import android.content.res.Configuration
+import com.arslan.shizuwall.FirewallMode
 import com.arslan.shizuwall.R
 import com.arslan.shizuwall.adapters.OnboardingPageAdapter
 import rikka.shizuku.Shizuku
@@ -166,6 +167,8 @@ class OnboardingActivity : BaseActivity() {
         getSharedPreferences(MainActivity.PREF_NAME, MODE_PRIVATE)
             .edit()
             .putString(MainActivity.KEY_LAST_SEEN_CHANGELOG, MainActivity.changelogId(this))
+            .putString(MainActivity.KEY_FIREWALL_MODE, FirewallMode.ADAPTIVE.name)
+            .putBoolean(MainActivity.KEY_SKIP_ENABLE_CONFIRM, true)
             .apply()
 
         // Navigate to MainActivity
