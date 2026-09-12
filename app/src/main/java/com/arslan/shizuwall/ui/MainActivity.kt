@@ -1561,6 +1561,12 @@ class MainActivity : BaseActivity() {
 
         firewallToggle.setOnCheckedChangeListener { _, isChecked ->
             if (suppressToggleListener) return@setOnCheckedChangeListener
+            if (isFirewallProcessRunning) {
+                suppressToggleListener = true
+                firewallToggle.isChecked = isEnablingProcess
+                suppressToggleListener = false
+                return@setOnCheckedChangeListener
+            }
             if (isChecked) {
                 profileEnableActive = profileEnableRequested
                 profileEnableRequested = false
@@ -1833,18 +1839,20 @@ class MainActivity : BaseActivity() {
         // enable the firewall toggle if firewall is currently active (so user can disable),
         // or if there is at least one selected app (so user can enable).
         if (::firewallToggle.isInitialized) {
-            firewallToggle.isEnabled = (isFirewallEnabled || count > 0 || firewallMode.allowsDynamicSelection()) && !isFirewallProcessRunning
+            firewallToggle.isEnabled = isFirewallEnabled || count > 0 || firewallMode.allowsDynamicSelection()
         }
         
         updateInteractiveViews()
     }
 
     private fun updateInteractiveViews() {
-        // The select-all badge should be disabled when the firewall is enabled and
-        // Adaptive Mode is turned OFF. Otherwise it can be used.
+        val dimmed = listDimmed
         if (::selectedCountText.isInitialized) {
-            selectedCountText.isEnabled = !isFirewallEnabled || firewallMode.allowsDynamicSelection()
-            selectedCountText.alpha = if (selectedCountText.isEnabled) 1.0f else 0.4f
+            selectedCountText.isEnabled = !dimmed
+            selectedCountText.alpha = if (dimmed) 0.4f else 1.0f
+        }
+        if (::firewallToggle.isInitialized) {
+            firewallToggle.isClickable = !isFirewallProcessRunning
         }
     }
 
@@ -2405,7 +2413,6 @@ class MainActivity : BaseActivity() {
             packageNames
         }
 
-        firewallToggle.isEnabled = false
         isFirewallProcessRunning = true
         isEnablingProcess = enable
         lifecycleScope.launch {
@@ -2536,7 +2543,6 @@ class MainActivity : BaseActivity() {
             }
             } finally {
                 firewallProgressFader.set(false)
-                firewallToggle.isEnabled = true
                 isFirewallProcessRunning = false
                 applyListInteractionState()
             }
@@ -3156,12 +3162,11 @@ class MainActivity : BaseActivity() {
         val target = getTargetPackagesToBlock(selectedPkgs)
         val whitelistAllow = getWhitelistAllowPackages(selectedPkgs)
 
-        firewallToggle.isEnabled = false
         isFirewallProcessRunning = true
+        isEnablingProcess = true
         lifecycleScope.launch {
             firewallProgressFader.set(true)
-            appListAdapter.setSelectionEnabled(false)
-            updateInteractiveViews()
+            applyListInteractionState()
             try {
                 val (installedTarget, _) = withContext(Dispatchers.IO) { filterInstalledPackages(target) }
 
@@ -3195,10 +3200,7 @@ class MainActivity : BaseActivity() {
 
             } finally {
                 firewallProgressFader.set(false)
-                firewallToggle.isEnabled = true
                 isFirewallProcessRunning = false
-                appListAdapter.setSelectionEnabled(true)
-                updateInteractiveViews()
                 applyListInteractionState()
                 sortAndFilterApps(preserveScrollPosition = false, scrollToTop = true)
             }
