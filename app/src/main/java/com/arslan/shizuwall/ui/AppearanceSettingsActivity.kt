@@ -66,7 +66,7 @@ class AppearanceSettingsActivity : BaseActivity() {
     }
 
     private fun loadSettings() {
-        switchMoveSelectedTop.isChecked = sharedPreferences.getBoolean(MainActivity.KEY_MOVE_SELECTED_TOP, true)
+        switchMoveSelectedTop.isChecked = sharedPreferences.getBoolean(MainActivity.KEY_MOVE_SELECTED_TOP, false)
         switchUseDynamicColor.isChecked = sharedPreferences.getBoolean(MainActivity.KEY_USE_DYNAMIC_COLOR, true)
         switchUseAmoledBlack.isChecked = sharedPreferences.getBoolean(MainActivity.KEY_USE_AMOLED_BLACK, false)
 

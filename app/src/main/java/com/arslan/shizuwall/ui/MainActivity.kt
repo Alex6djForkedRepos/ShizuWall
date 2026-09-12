@@ -175,7 +175,7 @@ class MainActivity : BaseActivity() {
     private var currentQuery = ""
     private var showSystemApps = false 
     private var showOtherProfiles = false
-    private var moveSelectedTop = true
+    private var moveSelectedTop = false
     private var firewallMode = FirewallMode.DEFAULT
     private enum class SortOrder { NAME_ASC, NAME_DESC, INSTALL_TIME }
     private var currentSortOrder = SortOrder.NAME_ASC
@@ -335,7 +335,7 @@ class MainActivity : BaseActivity() {
             // Reload settings and refresh the app list
             showSystemApps = sharedPreferences.getBoolean(KEY_SHOW_SYSTEM_APPS, false)
         showOtherProfiles = sharedPreferences.getBoolean(KEY_SHOW_OTHER_PROFILES, false)
-            moveSelectedTop = sharedPreferences.getBoolean(KEY_MOVE_SELECTED_TOP, true)
+            moveSelectedTop = sharedPreferences.getBoolean(KEY_MOVE_SELECTED_TOP, false)
             firewallMode = FirewallMode.fromName(sharedPreferences.getString(KEY_FIREWALL_MODE, FirewallMode.DEFAULT.name))
             updateFirewallToggleThumbIcon()
             appListRefreshPending = false
@@ -444,7 +444,7 @@ class MainActivity : BaseActivity() {
 
         showSystemApps = sharedPreferences.getBoolean(KEY_SHOW_SYSTEM_APPS, false)
         showOtherProfiles = sharedPreferences.getBoolean(KEY_SHOW_OTHER_PROFILES, false)
-        moveSelectedTop = sharedPreferences.getBoolean(KEY_MOVE_SELECTED_TOP, true)
+        moveSelectedTop = sharedPreferences.getBoolean(KEY_MOVE_SELECTED_TOP, false)
         firewallMode = FirewallMode.fromName(sharedPreferences.getString(KEY_FIREWALL_MODE, FirewallMode.DEFAULT.name))
         currentSortOrder = try {
             SortOrder.valueOf(sharedPreferences.getString(KEY_SORT_ORDER, SortOrder.NAME_ASC.name) ?: SortOrder.NAME_ASC.name)
@@ -1466,11 +1466,18 @@ class MainActivity : BaseActivity() {
             applyShowOtherProfilesChange(prefShowOtherProfiles)
         }
 
+        val prefMoveSelectedTop = sharedPreferences.getBoolean(KEY_MOVE_SELECTED_TOP, false)
+        val moveSelectedTopChanged = prefMoveSelectedTop != moveSelectedTop
+        if (moveSelectedTopChanged) {
+            moveSelectedTop = prefMoveSelectedTop
+            updateCategoryChips()
+        }
+
         if (showOtherProfilesChanged) {
             loadInstalledApps(showLoadingIfListEmpty = true)
             return true
         }
-        if (showSystemChanged) {
+        if (showSystemChanged || moveSelectedTopChanged) {
             sortAndFilterApps(preserveScrollPosition = false, scrollToTop = true, animate = false)
         }
 
