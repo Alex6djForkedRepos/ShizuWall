@@ -192,6 +192,9 @@ class MainActivity : BaseActivity() {
     private var profileEnableActive = false
     private val skipDimForProfileEnable: Boolean
         get() = profileEnableActive && firewallMode != FirewallMode.DEFAULT
+    private val listDimmed: Boolean
+        get() = !firewallMode.allowsDynamicSelection() &&
+            (isFirewallProcessRunning || (isFirewallEnabled && !skipDimForProfileEnable))
 
     private var profileEnableRequested = false
     private var isEnablingProcess = false
@@ -342,12 +345,7 @@ class MainActivity : BaseActivity() {
             loadInstalledApps()
             updateCategoryChips()
             
-            if (isFirewallEnabled) {
-                val keepInteractive = firewallMode.allowsDynamicSelection() || skipDimForProfileEnable
-                if (keepInteractive) hideDimOverlay() else showDimOverlay()
-                appListAdapter.setSelectionEnabled(keepInteractive || !isFirewallEnabled)
-                updateInteractiveViews()
-            }
+            if (isFirewallEnabled) applyListInteractionState()
             appListAdapter.setHybridModeEnabled(firewallMode == FirewallMode.HYBRID)
         }
     }
@@ -640,17 +638,13 @@ class MainActivity : BaseActivity() {
 
         // Reflect current firewall state in UI
         if (!isFirewallProcessRunning) {
-            val enabled = loadFirewallEnabled()
-            appListAdapter.setSelectionEnabled(!enabled || firewallMode.allowsDynamicSelection())
-            updateInteractiveViews()
-            isFirewallEnabled = enabled
-            applyListInteractionState()
+            isFirewallEnabled = loadFirewallEnabled()
         } else {
-            showDimOverlay(force = true)
             suppressToggleListener = true
             firewallToggle.isChecked = isEnablingProcess
             suppressToggleListener = false
         }
+        applyListInteractionState()
         appListAdapter.setHybridModeEnabled(firewallMode == FirewallMode.HYBRID)
         appListAdapter.setInfoButtonEnabled(
             sharedPreferences.getBoolean(KEY_SHOW_APP_INFO_BUTTON, true)
@@ -1060,6 +1054,7 @@ class MainActivity : BaseActivity() {
         recyclerView.layoutManager = LinearLayoutManager(this)
         appListAdapter = AppListAdapter(
             onAppClick = { appInfo ->
+                if (isFirewallProcessRunning) return@AppListAdapter
                 if (firewallMode.allowsDynamicSelection() && isFirewallEnabled && !checkPermission(SHIZUKU_PERMISSION_REQUEST_CODE)) {
                     appListAdapter.notifyDataSetChanged()
                     return@AppListAdapter
@@ -1525,7 +1520,7 @@ class MainActivity : BaseActivity() {
                     val fadeInDelay = if (smoothTransition) 0L else 400L
                     val fadeInDuration = if (smoothTransition) 260L else 200L
                     recyclerView.post {
-                        val targetAlpha = if ((isFirewallEnabled && !firewallMode.allowsDynamicSelection()) || isFirewallProcessRunning) 0.5f else 1f
+                        val targetAlpha = if (listDimmed) 0.5f else 1f
                         recyclerView.animate()
                             .alpha(targetAlpha)
                             .setStartDelay(fadeInDelay)
@@ -1552,7 +1547,7 @@ class MainActivity : BaseActivity() {
             appList.sortWith(finalComparator)
             filterApps(currentQuery)
             recyclerView.animate().cancel()
-            val targetAlpha = if ((isFirewallEnabled && !firewallMode.allowsDynamicSelection()) || isFirewallProcessRunning) 0.5f else 1f
+            val targetAlpha = if (listDimmed) 0.5f else 1f
             recyclerView.alpha = targetAlpha
             updateList()
         }
@@ -1992,8 +1987,7 @@ class MainActivity : BaseActivity() {
                 suppressToggleListener = true
                 firewallToggle.isChecked = false
                 suppressToggleListener = false
-                appListAdapter.setSelectionEnabled(true)
-                hideDimOverlay()
+                applyListInteractionState()
                 
                 if (appsWereRemoved) {
                     Toast.makeText(this@MainActivity, getString(R.string.firewall_disabled_active_uninstalled), Toast.LENGTH_SHORT).show()
@@ -2416,9 +2410,7 @@ class MainActivity : BaseActivity() {
         isEnablingProcess = enable
         lifecycleScope.launch {
             firewallProgressFader.set(true)
-            appListAdapter.setSelectionEnabled(false)
-            updateInteractiveViews()
-            showDimOverlay(force = true)
+            applyListInteractionState()
             
             if (enable && firewallMode.requiresForegroundDetection()) {
                 warnIfForegroundDetectionUnavailable()
@@ -2478,27 +2470,14 @@ class MainActivity : BaseActivity() {
                             com.arslan.shizuwall.services.FloatingButtonService.start(this@MainActivity)
                         }
                         
-                        if (firewallMode.allowsDynamicSelection() || skipDimForProfileEnable) {
-                            appListAdapter.setSelectionEnabled(true)
-                            updateInteractiveViews()
-                            hideDimOverlay()
-                        } else {
-                            appListAdapter.setSelectionEnabled(false)
-                            updateInteractiveViews()
-                            showDimOverlay()
-                        }
-                    
+
                 } else {
                     // None succeeded, revert toggle
                     suppressToggleListener = true
                     firewallToggle.isChecked = false
                     suppressToggleListener = false
                     Toast.makeText(this@MainActivity, getString(R.string.failed_to_enable_firewall), Toast.LENGTH_SHORT).show()
-                    if (!firewallMode.allowsDynamicSelection()) {
-                        appListAdapter.setSelectionEnabled(true)
-                        updateInteractiveViews()
-                        hideDimOverlay()
-                    }
+                    applyListInteractionState()
                 }
             } else {
                 if (successful.isNotEmpty()) {
@@ -2516,9 +2495,7 @@ class MainActivity : BaseActivity() {
                     suppressToggleListener = true
                     firewallToggle.isChecked = false
                     suppressToggleListener = false
-                    appListAdapter.setSelectionEnabled(true)
-                    updateInteractiveViews()
-                    hideDimOverlay()
+                    applyListInteractionState()
 
                     if (installed.isEmpty()) {
                         activeFirewallPackages.clear()
@@ -2693,42 +2670,15 @@ class MainActivity : BaseActivity() {
         else ShellExecutorProvider.forContext(this).execBatch(commands)
     }
 
-    // dim only the RecyclerView and disable its interactions
-    private fun showDimOverlay(force: Boolean = false) {
-        // visually dim RecyclerView and block interactions
-        if (firewallMode.allowsDynamicSelection() && !force) return
-
-        recyclerView.alpha = 0.5f
-        recyclerView.isEnabled = false
-        recyclerView.isClickable = false
-        appListAdapter.setSelectionEnabled(false)
-        appListAdapter.setFavoriteEnabled(firewallMode == FirewallMode.DEFAULT && !isFirewallProcessRunning)
-        updateInteractiveViews()
-    }
-
-    private fun hideDimOverlay() {
-        recyclerView.alpha = 1.0f
-        recyclerView.isEnabled = true
-        recyclerView.isClickable = true
-        appListAdapter.setSelectionEnabled(true)
-        appListAdapter.setFavoriteEnabled(true)
-        updateInteractiveViews()
-    }
-
     // Keep list interactivity and dim state consistent with current firewall mode/state.
     private fun applyListInteractionState() {
-        if (isFirewallProcessRunning) {
-            showDimOverlay(force = true)
-            return
-        }
-
-        val shouldLockSelection =
-            isFirewallEnabled && !firewallMode.allowsDynamicSelection() && !skipDimForProfileEnable
-        if (shouldLockSelection) {
-            showDimOverlay()
-        } else {
-            hideDimOverlay()
-        }
+        val dimmed = listDimmed
+        recyclerView.alpha = if (dimmed) 0.5f else 1f
+        recyclerView.isEnabled = !dimmed
+        recyclerView.isClickable = !dimmed
+        appListAdapter.setSelectionEnabled(!dimmed)
+        appListAdapter.setFavoriteEnabled(!(dimmed && isFirewallProcessRunning))
+        updateInteractiveViews()
     }
 
     // Called by packageBroadcastReceiver when a package is removed.
